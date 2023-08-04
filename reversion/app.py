@@ -1,18 +1,19 @@
 # -*- coding: UTF-8 -*-
 
-from reversion import *
+# from reversion import * 
+from reversion import wsobj 
 import numpy as np # pip3 install numpy
 import random
 
-_price_data = []
+__price_data = []
 
 
 # 初始化
-stop_loss_threshold = 0.005  # 止损百分比
-take_profit_threshold = 0.005  # 止盈百分比
+stop_loss_threshold = 0.0004  # 止损百分比
+take_profit_threshold = 0.0004  # 止盈百分比
 fee = 0.0005 # 手续费，吃单手续费，我们不挂单 
 
-window_size = 30
+__window_size = 300
 threshold = 0.002
 
 position = 0
@@ -31,15 +32,17 @@ total_stop = 1.0 # 止损次数
 
 
 def mean_reversion_strategy(price_data):
-    global position, usdt_balance, contract_quantity, cooldown_timer, buy_price,  fee, total_fee, total_stop
+    global position, usdt_balance, contract_quantity, cooldown_timer, buy_price,  fee, total_fee, total_stop, __window_size
+    __window_size = len(price_data)
 
-    if len(price_data) < window_size + 1:
+    if __window_size < wsobj.window_size + 1:
         # 数据不足，暂不进行交易
+        print("want %d , current %d" % (wsobj.window_size, __window_size))
         return 0
 
     # 计算移动窗口的平均值和标准差
-    window = price_data[-window_size:]
-    window_mean = sum(window) / window_size
+    window = price_data
+    window_mean = sum(window) / __window_size
     window_std = np.std(window)
 
     current_price = price_data[-1]
@@ -48,8 +51,8 @@ def mean_reversion_strategy(price_data):
         # 冷却时间内不进行交易
         cooldown_timer -= 1
         return 0
-    print("\n usdt_balance=%f, current_price=%f, buy_price=%f, position=%d, window_mean=%f, window_std=%f, price_data=%s" 
-          % (usdt_balance, current_price, buy_price, position, window_mean, window_std, price_data))
+    print("\n usdt_balance=%f, current_price=%f, buy_price=%f, position=%d, window_mean=%f, window_std=%f, price_data[-20:]=%s" 
+            % (usdt_balance, current_price, buy_price, position, window_mean, window_std, price_data[-20:]))
     if usdt_balance > min_price and position == 0:
         # 若当前没有持仓
         if current_price > window_mean + threshold * window_std:
@@ -144,25 +147,30 @@ def mean_reversion_strategy(price_data):
 
 
 def make_random_list(i, j, k):
-    global _price_data
+    global __price_data
     t = 0
     while( t < i) :
-        _price_data.append(random.randint(j,k))
+        __price_data.append(random.randint(j,k))
         t+=1
 
 
 def do_loop() :
-    # 假设_price_data为实时行情价格列表，不断更新
+    # 假设__price_data为实时行情价格列表，不断更新
     # 调用均值回归策略获取交易信号
-    global usdt_balance, _price_data, window_size
+    global usdt_balance, __price_data, __window_size
     cost = usdt_balance
     make_random_list(86400, 1875, 1917)
-    print("all_price_data = %s" % (_price_data))
+    print("all__price_data = %s" % (__price_data))
     t = 0
-    for i in range(0, len(_price_data)-(window_size+2)) :
-        signal = mean_reversion_strategy(_price_data[i:i+(window_size+2)])
+    for i in range(0, len(__price_data)-(__window_size+2)) :
+        signal = mean_reversion_strategy(__price_data[i:i+(__window_size+2)])
         t+=np.abs(signal)
 
     income = usdt_balance - cost 
     print("\n total_order=%d, total_stop(%d)=%f, cost=%f, result=%f, income=%f, fee=%f" % (t, total_stop, total_stop/t, cost, usdt_balance, income, total_fee))
     return "done."
+
+
+def start_link() :
+    wsobj.strategy_fn = mean_reversion_strategy 
+    wsobj.ws_mark_price()

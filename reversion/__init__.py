@@ -48,8 +48,8 @@ CONTRACT_PRICE
 
 testnet的 REST baseurl 为 "https://testnet.binancefuture.com"
 testnet的 Websocket baseurl 为 "wss://stream.binancefuture.com"
+
+生产 Base Url：
+wss://fstream.binance.com
+
 """
-
-
-
-
