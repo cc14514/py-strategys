@@ -6,6 +6,7 @@
 # pip3 install numpy
 # pip3 install requests
 # pip3 install mysql-connector-python
+# pip3 install matplotlib
 
 '''
 CREATE TABLE `kline_ethusdt_5m` (
@@ -136,6 +137,10 @@ import math
 import mysql.connector 
 import numpy as np 
 import sys
+import taf
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import pytz
 
 
 proxies = {
@@ -226,6 +231,7 @@ def query_min_id(conn):
 
 def query_data(conn, limit, startTime=None, endTime=None):
     '''
+    # 结果集倒叙，需要 reverse
     返回的结果集：(id, o, c, c-o)
     '''
     # sql_query = "SELECT (o+h+l+c)/4 , id FROM exchange.{table_name} ORDER BY id DESC LIMIT 0, %d" % n
@@ -402,12 +408,62 @@ def live_data() :
 
 def test_taf():
     conn = connect_database() 
-    results = query_data(conn, 300, startTime=1690992000000, endTime=1691078100000)
+    results = query_data(conn, 300) 
+    #results = query_data(conn, 30, startTime=1690992000000, endTime=1691078100000)
     lc = []
+    lt = []
     for r in results :
-        print (r)
         lc.append(float(r[2]))
-    print(lc)
+        lt.append(float(r[0]))
+    lc.reverse()
+    lt.reverse()
+    # print(lc)
+    k5m_m5 = taf.ma(lc, 5) # MA5
+    k5m_m10 = taf.ma(lc, 10) # MA10
+    # k5m_boll_u, k5m_boll_m, k5m_boll_l 分别为 上轨 中轨 下轨 
+    k5m_boll_u, k5m_boll_m, k5m_boll_l = taf.boll(lc, ma = k5m_m5, window = 5) #BOLL5
+    # 价格数据
+    lc = lc[-len(k5m_boll_m):]
+    # 对应的时间戳列表
+    lt = lt[-len(k5m_boll_m):]
+
+
+    # 将时间戳转换为时分秒（H:M:S）的形式
+    # Convert timestamps to datetime objects and specify timezone
+    tz = pytz.timezone('Asia/Shanghai')  # Replace 'Asia/Shanghai' with your desired timezone
+    lt_time = [datetime.datetime.utcfromtimestamp(ts/1000).replace(tzinfo=pytz.utc).astimezone(tz) for ts in lt]
+    
+    print(lt_time)
+
+    # Creating the figure and axis objects
+    fig, ax = plt.subplots()
+
+    # Plotting the lines
+    ax.plot(lt_time, k5m_boll_u, label='Upper Bollinger Band', color='blue')
+    ax.plot(lt_time, k5m_boll_m, label='Middle Bollinger Band', color='green')
+    ax.plot(lt_time, k5m_boll_l, label='Lower Bollinger Band', color='red')
+    ax.plot(lt_time, lc, label='Price', color='black', linewidth=2)
+    ax.plot(lt_time, k5m_m5, label='MA 5', color='Yellow', linewidth=1)
+
+    # Adding legend
+    ax.legend()
+
+    # Adding title and axis labels
+    ax.set_title('Bollinger Bands')
+    ax.set_xlabel('Time')
+    ax.set_ylabel('Price')
+
+    date_format = mdates.DateFormatter('%Y-%m-%d %H:%M:%S', tz=tz)  # Specify the timezone
+    ax.xaxis.set_major_formatter(date_format)
+
+    # Automatically adjust the angle of x-axis labels to avoid overlapping
+    plt.gcf().autofmt_xdate()
+
+    # Show the plot
+    plt.show()
+
+
+    # TODO 
     conn.close()
     pass
 
